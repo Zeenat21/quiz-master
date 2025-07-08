@@ -1,0 +1,32 @@
+1. Added the ondelete cascade changes to models and passive deletes to relationships yet deleting subjects 
+does not delete the chapters, 
+understand:
+    - suggestion by chatgpt to add eventlistner to Enable foreign key enforcement in SQLite
+    - find an easier way
+    - how to handlge flask-migrate and initial_data create admin at the same time - both needed or not?
+
+1. Use Vue CLI
+2. Flask - migrate
+3. check for the delete thing after flask migrate
+http-server . in cmd
+
+quizmaster cmd has node, npm and vue cli installed
+Z:\Quiz Master>node -v
+v22.16.0
+
+Z:\Quiz Master>npm -v
+10.9.2
+
+Z:\Quiz Master>vue --version
+@vue/cli 5.0.8
+
+I created project with Vue CLI v5.0.8 --> Default ([Vue 2] babel, eslint)
+
+commands: 
+$ cd frontend
+$ npm run serve
+
+vue 3
+bootstrap-vue-next
+
+venv with python311 
