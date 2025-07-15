@@ -19,10 +19,6 @@
         <i class="fa fa-user"></i>
         <span class="link-text"> Users</span>
       </router-link>      
-      <router-link to="/admin/subjects" class="nav-link">
-        <i class="fa fa-book"></i>
-        <span class="link-text"> Subjects</span>
-      </router-link>
       <router-link to="/admin/quizzes" class="nav-link">
         <i class="fa fa-pencil-square-o"></i>
         <span class="link-text"> Quizzes</span>
@@ -45,6 +41,12 @@
 import api from '@/axios';
 
 export default{
+  props: {
+    collapsed: {
+      type: Boolean,
+      default: false
+    }
+  },
 methods: {
   async logout() {
     const confirmed = confirm('Are you sure you want to logout?');
@@ -57,7 +59,7 @@ methods: {
       console.error('Logout failed:', error.response?.data || error.message);
     } finally {
       localStorage.removeItem('access_token');
-      this.$router.push('/login'); // I can change this to application home page as well
+      this.$router.push('/'); // I can change this to application home page as well
     }
   }
 }

@@ -30,3 +30,7 @@ vue 3
 bootstrap-vue-next
 
 venv with python311 
+
+git add .
+git commit
+git push

@@ -61,9 +61,10 @@ export default {
           email: this.email,
           password: this.password
         })
-        const { access_token, roles } = response.data
+        const { access_token, roles, full_name } = response.data
         localStorage.setItem('user_roles', JSON.stringify(roles))
         localStorage.setItem('access_token', access_token)
+        localStorage.setItem('full_name', full_name)
         
         if (roles.includes('admin')) {
             this.$router.push('/admin');

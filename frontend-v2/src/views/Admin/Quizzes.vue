@@ -2,24 +2,28 @@
   <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2 class="fw-bold text-dark">Manage Quizzes</h2>
-      <button class="btn btn-primary" @click="openAddQuizModal">
+      <button class="btn btn-primary" @click="openAddQuizModal" title="Add quiz">
         <i class="fa fa-plus"></i> Add Quiz
       </button>
     </div>
 
+
+
     <div class="row">
-      <div
-        v-for="quiz in quizzes"
-        :key="quiz.id"
-        class="col-md-6 col-xl-4 mb-4"
-      >
-        <div class="card h-100 shadow rounded-3">
-          <div class="card-header bg-info text-white fw-bold">
+      <div v-for="quiz in quizzes" :key="quiz.id" class="col-12 col-md-6 mb-4">
+        <div class="card h-100 shadow rounded-3" style="height: 350px;">
+          <div class="card-header bg-info text-white fw-bold"
+          style="cursor: pointer;"
+          @click="openQuizDetailModal(quiz)"
+          title="Click to view Quiz details."
+          >
             {{ quiz.title }}
           </div>
-          <div class="card-body p-2">
-            <table class="table table-sm table-hover mb-2">
-              <thead class="table-light">
+          <div class="card-body p-2 d-flex flex-column">
+          <div class="question-table-wrapper flex-grow-1">
+          <!-- <div class="flex-grow-1 overflow-auto"> -->
+            <table class="table table-sm table-hover mb-0">
+              <thead class="table-light sticky-top bg-white">
                 <tr>
                   <th>ID</th>
                   <th>Question</th>
@@ -31,7 +35,7 @@
                   <td>{{ q.id }}</td>
                   <td>{{ q.question_statement }}</td>
                   <td>
-                    <div class="d-flex flex-wrap">
+                    <div class="d-flex justify-content-center align-items-center">
                       <button class="btn btn-sm btn-warning me-2 mb-1" @click="openEditQuestionModal(q, quiz.id)" title="Edit">
                         <i class="fa fa-pencil"></i>
                       </button>
@@ -43,9 +47,13 @@
                 </tr>
               </tbody>
             </table>
-            <button class="btn btn-sm btn-outline-success w-100" @click="openAddQuestionModal(quiz.id)">
+            </div>
+
+            <div class="pt-2 mt-auto">
+            <button class="btn btn-sm btn-outline-success w-100" @click="openAddQuestionModal(quiz.id)" title="Add question">
               + Add Question
             </button>
+            </div>
           </div>
         </div>
       </div>
@@ -53,7 +61,7 @@
 
     <!-- Modal -->
     <div v-if="showModal" class="modal fade show d-block" tabindex="-1">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
           <form @submit.prevent="handleModalSubmit">
             <div class="modal-header">
@@ -66,7 +74,8 @@
                 <component
                   :is="field.type === 'textarea' ? 'textarea' : 'input'"
                   class="form-control"
-                  v-model="formData[field.name]"
+                  :value="formData[field.name]"
+                  @input="formData[field.name] = $event.target.value"
                   :type="field.type === 'textarea' ? undefined : field.type"
                   :id="field.name"
                   :required="field.required !== false"
@@ -83,12 +92,24 @@
     </div>
     <div v-if="showModal" class="modal-backdrop fade show"></div>
   </div>
+
+    <QuizDetailModal
+    :show="showQuizDetailModal"
+    :quiz="selectedQuiz"
+    @close="showQuizDetailModal = false"
+    @save="updateQuiz"
+    @delete="deleteQuiz"
+  />
+
 </template>
 
 <script>
 import api from '@/axios';
+import QuizDetailModal from "@/components/QuizDetailModal.vue";
+
 
 export default {
+  components: { QuizDetailModal },
   data() {
     return {
       quizzes: [],
@@ -99,6 +120,9 @@ export default {
       currentQuizId: null,
       editingQuestionId: null,
       isQuizModal: false,
+
+      showQuizDetailModal: false,
+      selectedQuiz: {},
     };
   },
   methods: {
@@ -116,11 +140,17 @@ export default {
       this.modalFields = [
         { name: 'title', label: 'Quiz Title', type: 'text' },
         { name: 'chapter_id', label: 'Chapter ID', type: 'number' },
-        { name: 'date_of_quiz', label: 'Date (YYYY-MM-DD)', type: 'text' },
+        { name: 'date_of_quiz', label: 'Date', type: 'date' },
         { name: 'time_duration', label: 'Time Duration (in minutes)', type: 'number' },
-        { name: 'remarks', label: 'Remarks', type: 'textarea', required: false }
+        { name: 'remarks', label: 'Remarks', type: 'textarea', required: false },
       ];
-      this.formData = {};
+      this.formData = {
+        title: '',
+        chapter_id: '',
+        date_of_quiz: '',
+        time_duration: '',
+        remarks: '',
+      };
       this.isQuizModal = true;
       this.showModal = true;
     },
@@ -133,9 +163,16 @@ export default {
         { name: 'option2', label: 'Option 2', type: 'text' },
         { name: 'option3', label: 'Option 3', type: 'text' },
         { name: 'option4', label: 'Option 4', type: 'text' },
-        { name: 'correct_option', label: 'Correct Option (1-4)', type: 'number' }
+        { name: 'correct_option', label: 'Correct Option (1-4)', type: 'number' },
       ];
-      this.formData = {};
+      this.formData = {
+        question_statement: '',
+        option1: '',
+        option2: '',
+        option3: '',
+        option4: '',
+        correct_option: '',
+      };
       this.currentQuizId = quizId;
       this.editingQuestionId = null;
       this.isQuizModal = false;
@@ -150,7 +187,7 @@ export default {
         { name: 'option2', label: 'Option 2', type: 'text' },
         { name: 'option3', label: 'Option 3', type: 'text' },
         { name: 'option4', label: 'Option 4', type: 'text' },
-        { name: 'correct_option', label: 'Correct Option (1-4)', type: 'number' }
+        { name: 'correct_option', label: 'Correct Option (1-4)', type: 'number' },
       ];
       this.formData = { ...question };
       this.editingQuestionId = question.id;
@@ -179,10 +216,9 @@ export default {
         } else {
           await api.post('/questions', {
             ...this.formData,
-            quiz_id: this.currentQuizId
+            quiz_id: this.currentQuizId,
           });
         }
-
         this.closeModal();
         this.fetchQuizzes();
       } catch (err) {
@@ -198,11 +234,40 @@ export default {
       this.modalTitle = '';
       this.currentQuizId = null;
       this.editingQuestionId = null;
-    }
+    },
+
+    openQuizDetailModal(quiz) {
+      this.selectedQuiz = { ...quiz };
+      this.showQuizDetailModal = true;
+    },
+
+    async updateQuiz(updatedQuiz) {
+      try {
+        await api.put(`/quizzes/${updatedQuiz.id}`, updatedQuiz);
+        this.fetchQuizzes();
+        this.showQuizDetailModal = false;
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.msg || "Failed to update quiz.");
+      }
+    },
+
+    async deleteQuiz(quizId) {
+      try {
+        await api.delete(`/quizzes/${quizId}`);
+        this.fetchQuizzes();
+        this.showQuizDetailModal = false;
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.msg || "Failed to delete quiz.");
+      }
+    },
+
+
   },
   mounted() {
     this.fetchQuizzes();
-  }
+  },
 };
 </script>
 
@@ -222,4 +287,27 @@ export default {
 .modal {
   z-index: 1050;
 }
+
+.modal-body {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+
+.table td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.question-table-wrapper {
+  max-height: 300px; /* Adjust this value until approx. 4 rows show for your layout */
+  overflow-y: auto;
+}
+
+.card-header:hover {
+  background-color: #7b1fa2 !important; /* slightly lighter violet */
+}
+
+
 </style>

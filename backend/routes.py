@@ -1,8 +1,10 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
-from models import db, Subject, Chapter, Quiz, Question, User, Score
+from models import db, Subject, Chapter, Quiz, Question, User, Score, roles_users, Role
 from functools import wraps
 from datetime import datetime, date
+from sqlalchemy import func, text, extract
+from werkzeug.security import generate_password_hash, check_password_hash
 
 admin_routes = Blueprint('admin_routes', __name__, url_prefix='/api')
 user_routes = Blueprint('user_routes', __name__,url_prefix='/api' )
@@ -324,12 +326,16 @@ def delete_user(user_id):
 @user_required
 def get_upcoming_quizzes():
     today = date.today()
+    user_id = int(get_jwt_identity())
+    # Get quiz IDs the user already attempted
+    attempted_quiz_ids = db.session.query(Score.quiz_id).filter_by(user_id=user_id)
 
     quizzes = (
         db.session.query(Quiz)
         .join(Chapter)
         .join(Subject)
         .filter(Quiz.date_of_quiz >= today)
+        .filter(~Quiz.id.in_(attempted_quiz_ids))
         .all()
     )
 
@@ -347,7 +353,7 @@ def get_upcoming_quizzes():
 
     return jsonify(data), 200
 
-### need to test the route below
+### need to test the route below - works!
 @user_routes.route('/user/scores', methods=['GET'])
 @user_required
 def get_user_scores():
@@ -370,3 +376,223 @@ def get_user_scores():
         })
 
     return jsonify(results), 200
+
+
+# ----admin summary routes------
+@admin_routes.route('admin-summary/subject-quiz-attempts', methods=['GET'])
+@admin_required
+def subject_quiz_attempts():
+    results = db.session.query(
+        Subject.name.label("subject"),
+        func.count(Score.id).label("total_attempts"),
+        func.count(func.distinct(Score.user_id)).label("unique_users")
+    ).join(Subject.chapters).join(Chapter.quizzes).join(Quiz.scores) \
+     .group_by(Subject.id).all()
+
+    return jsonify([dict(row._asdict()) for row in results])
+
+
+@admin_routes.route('admin-summary/top-scores-per-subject', methods=['GET'])
+@admin_required
+def top_scores_per_subject():
+    results = db.session.execute(text("""
+        SELECT s.id, s.name AS subject, MAX(sc.total_score) AS max_score
+        FROM subject s
+        LEFT JOIN chapter c ON s.id = c.subject_id
+        LEFT JOIN quiz q ON c.id = q.chapter_id
+        LEFT JOIN score sc ON q.id = sc.quiz_id
+        GROUP BY s.id, s.name
+    """)).fetchall()
+
+    return jsonify([dict(row._mapping) for row in results])
+
+
+
+##filter out the admin result
+@admin_routes.route('admin-summary/user-activity', methods=['GET'])
+@admin_required
+def user_activity():
+    # Subquery: Get all user IDs with the admin role
+    admin_user_ids = db.session.query(roles_users.c.user_id) \
+        .join(Role, roles_users.c.role_id == Role.id) \
+        .filter(Role.name == 'admin')
+
+    # Main query: Exclude those users
+    results = db.session.query(
+        User.full_name.label("user"),
+        func.count(Score.id).label("total_attempts"),
+        func.max(Score.timestamp).label("last_attempt")
+    ).outerjoin(User.scores) \
+     .filter(~User.id.in_(admin_user_ids)) \
+     .group_by(User.id) \
+     .all()
+
+    return jsonify([dict(row._asdict()) for row in results])
+
+
+
+
+
+# ROUTES FOR USER
+
+@user_routes.route('/user/profile', methods=['GET'])
+@user_required
+def get_user_profile():
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
+
+    return jsonify({
+        "email": user.email,
+        "full_name": user.full_name,
+        "qualification": user.qualification,
+        "dob": user.dob.isoformat() if user.dob else None
+    }), 200
+
+@user_routes.route('/user/profile', methods=['PUT'])
+@user_required
+def update_user_profile():
+    user_id = int(get_jwt_identity())
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+
+    user.full_name = data.get('full_name', user.full_name)
+    user.qualification = data.get('qualification', user.qualification)
+    dob_str = data.get('dob')
+    if dob_str:
+        user.dob = datetime.strptime(dob_str, "%Y-%m-%d").date()
+
+    if data.get("password"):
+        user.password = generate_password_hash(data["password"])
+
+    db.session.commit()
+    return jsonify({"msg": "Profile updated successfully"}), 200
+
+
+### quiz attempt routes
+
+@user_routes.route('/user/quiz/<int:quiz_id>/questions', methods=['GET'])
+@user_required
+def get_quiz_questions(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+
+    questions = [{
+        "id": q.id,
+        "question_statement": q.question_statement,
+        "option1": q.option1,
+        "option2": q.option2,
+        "option3": q.option3,
+        "option4": q.option4,
+    } for q in quiz.questions]
+
+    return jsonify({
+        "quiz_id": quiz.id,
+        "title": quiz.title,
+        "duration_minutes": quiz.time_duration,
+        "questions": questions
+    })
+
+@user_routes.route('/user/quiz/<int:quiz_id>/submit', methods=['POST'])
+@user_required
+def submit_quiz(quiz_id):
+    user_id = int(get_jwt_identity())
+    quiz = Quiz.query.get_or_404(quiz_id)
+
+    data = request.get_json()
+    answers = data.get("answers", [])
+
+    if not isinstance(answers, list) or len(answers) == 0:
+        return jsonify({"msg": "Invalid answer data."}), 400
+
+    question_lookup = {q.id: q for q in quiz.questions}
+
+    correct_count = 0
+    for item in answers:
+        q_id = item.get("question_id")
+        selected = item.get("selected_option")
+
+        question = question_lookup.get(q_id)
+        if question and question.correct_option == selected:
+            correct_count += 1
+
+    total_questions = len(quiz.questions)
+    percentage = (correct_count / total_questions) * 100
+    total_score = correct_count * (100 / total_questions)  # adjust if you use weighted scoring
+
+    # Save score to DB
+    score_entry = Score(
+        quiz_id=quiz.id,
+        user_id=user_id,
+        timestamp=datetime.utcnow(),
+        total_score=total_score,
+        percentage=percentage,
+        correct_answers=correct_count,
+        total_questions=total_questions
+    )
+    db.session.add(score_entry)
+    db.session.commit()
+
+    return jsonify({
+        "msg": "Quiz submitted successfully.",
+        "total_score": total_score,
+        "percentage": percentage,
+        "correct_answers": correct_count,
+        "total_questions": total_questions
+    }), 200
+
+
+### User summary routes! ###
+@user_routes.route('/user/summary/total-attempts', methods=['GET'])
+@user_required
+def total_attempts():
+    user_id = int(get_jwt_identity())
+    total = Score.query.filter_by(user_id=user_id).count()
+    return jsonify({'total_quizzes_attempted': total})
+
+@user_routes.route('/user/summary/subject-attempts', methods=['GET'])
+@user_required
+def subject_attempts():
+    user_id = int(get_jwt_identity())
+    results = db.session.query(
+        Subject.name.label('subject'),
+        db.func.count(Score.id).label('attempts')
+    ).join(Chapter, Chapter.subject_id == Subject.id
+    ).join(Quiz, Quiz.chapter_id == Chapter.id
+    ).join(Score, Score.quiz_id == Quiz.id
+    ).filter(Score.user_id == user_id
+    ).group_by(Subject.name).all()
+
+    response = [{'subject': r.subject, 'attempts': r.attempts} for r in results]
+    return jsonify(response)
+
+@user_routes.route('/user/summary/monthly-attempts', methods=['GET'])
+@user_required
+def monthly_attempts():
+    user_id = int(get_jwt_identity())
+    results = db.session.query(
+        extract('year', Score.timestamp).label('year'),
+        extract('month', Score.timestamp).label('month'),
+        db.func.count(Score.id).label('attempts')
+    ).filter(Score.user_id == user_id
+    ).group_by('year', 'month').order_by('year', 'month').all()
+
+    response = [
+        {
+            'month': f"{int(r.month):02}/{int(r.year)}",
+            'attempts': r.attempts
+        }
+        for r in results
+    ]
+    return jsonify(response)
+
+@user_routes.route('/user/summary/avg-score', methods=['GET'])
+@user_required
+def average_score():
+    user_id = int(get_jwt_identity())
+
+    result = db.session.query(
+        db.func.avg(Score.total_score).label('average_score')
+    ).filter(Score.user_id == user_id).first()
+
+    average_score = round(result.average_score or 0, 2)  # Defaults to 0 if None
+
+    return jsonify({'average_score': average_score})

@@ -34,6 +34,7 @@
                   class="btn btn-sm"
                   :class="isTodayOrPast(quiz.date_of_quiz) ? 'btn-success' : 'btn-secondary'"
                   :disabled="!isTodayOrPast(quiz.date_of_quiz)"
+                  @click="isTodayOrPast(quiz.date_of_quiz) && startQuiz(quiz.id)"
                 >
                   Start Quiz
                 </button>
@@ -56,7 +57,7 @@ export default {
   data() {
     return {
       quizzes: [],
-      userName: localStorage.getItem('user_name') || 'User',
+      userName: localStorage.getItem('full_name') || 'User',
     };
   },
   methods: {
@@ -71,6 +72,12 @@ export default {
     isTodayOrPast(dateStr) {
       const today = new Date().toISOString().split('T')[0];
       return dateStr <= today;
+    },
+
+    startQuiz(quizId) {
+      if (confirm("Ready to begin the quiz? Once you start, you can't go back. If you do all the progress will be lost.")) {
+        this.$router.push(`user/quiz-attempt/${quizId}`);
+      }
     }
   },
   mounted() {

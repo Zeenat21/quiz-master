@@ -51,7 +51,7 @@ class Quiz(db.Model):
     chapter_id = db.Column(db.Integer, db.ForeignKey('chapter.id', ondelete='CASCADE'), nullable=False)
     title = db.Column(db.String(150), nullable=False)
     date_of_quiz = db.Column(db.Date)
-    time_duration = db.Column(db.String(5))  # Format: HH:MM
+    time_duration = db.Column(db.Integer, nullable=False) # In minutes
     remarks = db.Column(db.String(255))
 
     questions = db.relationship('Question', backref='quiz', lazy=True,cascade="all, delete-orphan", passive_deletes=True)

@@ -37,7 +37,7 @@ button, .btn {
 }
 
 button:hover, .btn:hover{
-  background-color: #4a148c !important; /* Darker violet on hover */
-  border-color: #4a148c !important;
+  background-color: #6a1b9a !important; /* Darker violet on hover */
+  border-color: #361f44 !important;
 }
 </style>

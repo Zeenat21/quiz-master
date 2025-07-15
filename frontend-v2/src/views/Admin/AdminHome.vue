@@ -1,5 +1,5 @@
 <template>
-  <div class="container-fluid">
+  <div class="container-fluid mt-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h2 class="fw-bold text-dark">Welcome Admin!</h2>
       <button class="btn btn-primary" @click="openAddSubjectModal">
@@ -13,39 +13,52 @@
         :key="subject.id"
         class="col-md-6 col-xl-4 mb-4"
       >
-        <div class="card h-100 shadow rounded-3">
-          <div class="card-header bg-primary text-white fw-bold">
+        <div class="card h-100 shadow rounded-3" style="height: 350px;">
+          <div class="card-header bg-primary text-white fw-bold"
+          style="cursor: pointer;"
+          @click="openSubjectDetailModal(subject)"
+          title="Click to view/edit subject"
+          >
             {{ subject.name }}
           </div>
-          <div class="card-body p-2">
-            <table class="table table-sm table-hover mb-2">
-              <thead class="table-light">
-                <tr>
-                  <th>Chapter</th>
-                  <th>Quizzes</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="chapter in subject.chapters" :key="chapter.id">
-                  <td>{{ chapter.name }}</td>
-                  <td>{{ chapter.quiz_count }}</td>
-                  <td>
-                    <div class="d-flex flex-wrap">
-                      <button class="btn btn-sm btn-warning me-2 mb-1" @click="openEditChapterModal(chapter, subject.id)" title="Edit">
-                       <i class="fa fa-pencil"></i>
-                      </button>
-                      <button class="btn btn-sm btn-danger mb-1" @click="confirmDeleteChapter(chapter.id)" title="Delete">
-                        <i class="fa fa-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <button class="btn btn-sm btn-outline-success w-100" @click="openAddChapterModal(subject.id)">
-              + Add Chapter
-            </button>
+
+          <div class="card-body p-2 d-flex flex-column">
+            <div class="chapter-table-wrapper flex-grow-1">
+            <!-- <div class="flex-grow-1 overflow-auto"> -->
+              <table class="table table-sm table-hover mb-0">
+                <thead class="table-light sticky-top bg-white">
+                  <tr>
+                    <th>Chapter</th>
+                    <th>Quizzes</th>
+                    <th class="text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="chapter in subject.chapters" :key="chapter.id">
+                    <td>{{ chapter.name }}</td>
+                    <td>{{ chapter.quiz_count }}</td>
+                    <td class="text-center align-middle">
+                      <div class="d-flex justify-content-center align-items-center">
+                        <button class="btn btn-sm btn-warning me-2" @click="openEditChapterModal(chapter, subject.id)" title="Edit">
+                          <i class="fa fa-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-danger" @click="confirmDeleteChapter(chapter.id)" title="Delete">
+                          <i class="fa fa-trash"></i>
+                        </button>
+                      </div>
+
+
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="pt-2 mt-auto">
+              <button class="btn btn-sm btn-outline-success w-100" @click="openAddChapterModal(subject.id)" title="Add Chapter">
+                + Add Chapter
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -66,7 +79,8 @@
                 <component
                   :is="field.type === 'textarea' ? 'textarea' : 'input'"
                   class="form-control"
-                  v-model="formData[field.name]"
+                  :value="formData[field.name]"
+                  @input="formData[field.name] = $event.target.value"
                   :type="field.type === 'textarea' ? undefined : field.type"
                   :id="field.name"
                   required
@@ -81,17 +95,41 @@
         </div>
       </div>
     </div>
-    <!-- Modal Backdrop -->
+
     <div v-if="showModal" class="modal-backdrop fade show"></div>
   </div>
+
+
+   <!-- Subject detailed view  -->
+    <SubjectDetailModal
+      :show="showSubjectModal"
+      :subject="selectedSubject"
+      @close="showSubjectModal = false"
+      @save="updateSubject"
+      @delete="deleteSubject"
+    />
 </template>
+
+
+
+
 
 <script>
 import api from '@/axios';
+import SubjectDetailModal from "@/components/SubjectDetailModal.vue";
 
 export default {
+  components: { SubjectDetailModal },
   data() {
     return {
+      // subjects: [],
+      showSubjectModal: false,
+      selectedSubject: {
+        id: null,
+        name: "",
+        description: "",
+      },
+
       subjects: [],
       showModal: false,
       modalTitle: '',
@@ -118,7 +156,11 @@ export default {
         { name: 'name', label: 'Subject Name', type: 'text' },
         { name: 'description', label: 'Description', type: 'textarea' }
       ];
-      this.formData = {};
+      // this.formData = {};
+      this.formData = {
+        name: '',
+        description: ''
+      };
       this.showModal = true;
       this.isSubjectModal = true;
     },
@@ -189,7 +231,40 @@ export default {
       this.modalFields = [];
       this.editingChapterId = null;
       this.currentSubjectId = null;
-    }
+    },
+
+      openSubjectDetailModal(subject) {
+      this.selectedSubject = { ...subject };
+      this.showSubjectModal = true;
+    },
+
+    async updateSubject(updatedSubject) {
+      try {
+        await api.put(`/subjects/${updatedSubject.id}`, updatedSubject);
+        this.showSubjectModal = false;
+        this.fetchSubjects();
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.msg || "Failed to update subject.");
+      }
+    },
+
+    async deleteSubject(subjectId) {
+      try {
+        await api.delete(`/subjects/${subjectId}`);
+        this.showSubjectModal = false;
+        this.fetchSubjects();
+      } catch (err) {
+        console.error(err);
+        alert(err.response?.data?.msg || "Failed to delete subject.");
+      }
+    },
+  
+
+
+
+
+
   },
   mounted() {
     this.fetchSubjects();
@@ -205,9 +280,9 @@ export default {
   overflow-x: auto;
 }
 
-/* d-flex.gap-2 > .btn {
-  margin-right: 10rem; 
-} */
+.card-header:hover {
+  background-color: #7b1fa2 !important; /* slightly lighter violet */
+}
 
 .modal-backdrop {
   z-index: 1040;
@@ -215,7 +290,12 @@ export default {
 .modal {
   z-index: 1050;
 }
-/* 
-.table td {
-  vertical-align: middle;} */
+
+.d-flex > .btn {
+  margin-right: 2px;
+}
+.chapter-table-wrapper {
+  max-height: 180px; 
+  overflow-y: auto;
+}
 </style>

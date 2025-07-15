@@ -33,7 +33,10 @@
 
     <div v-else>
       <ul v-if="results.length > 0" class="list-group">
-        <li v-for="item in results" :key="item.id" class="list-group-item d-flex justify-content-between">
+        <li v-for="item in results" :key="item.id" class="list-group-item d-flex justify-content-between"
+       @click="handleItemClick(item, $event)"
+        style="cursor: pointer;"
+        >
           <span>
             <strong v-if="selectedTab === 'Users'">{{ item.email }}</strong>
             <strong v-if="selectedTab === 'Subjects'">{{ item.name }}</strong>
@@ -46,6 +49,26 @@
       </ul>
       <div v-else class="text-muted">No {{ selectedTab.toLowerCase() }} found.</div>
     </div>
+
+    <QuizDetailModal
+    v-show="selectedQuiz !== null"
+    :show="showQuizModal"
+    :quiz="selectedQuiz"
+    @save="handleQuizSave"
+    @delete="handleQuizDelete"
+    @close="showQuizModal = false"
+    />
+
+    <SubjectDetailModal
+    v-show="selectedSubject !== null"
+    :show="showSubjectModal"
+    :subject="selectedSubject"
+    @save="handleSubjectSave"
+    @delete="handleSubjectDelete"
+    @close="showSubjectModal = false"
+    />
+
+
   </div>
 </template>
 
@@ -53,7 +76,11 @@
 import api from '@/axios';
 import debounce from 'lodash/debounce';
 
+import QuizDetailModal from "@/components/QuizDetailModal.vue";
+import SubjectDetailModal from "@/components/SubjectDetailModal.vue";
+
 export default {
+  components: {QuizDetailModal, SubjectDetailModal},
   data() {
     return {
       tabs: ['Users', 'Subjects', 'Quizzes'],
@@ -61,6 +88,12 @@ export default {
       searchQuery: '',
       results: [],
       loading: false,
+
+      showQuizModal: false,
+      selectedQuiz: null,
+
+      showSubjectModal: false,
+      selectedSubject: null,
     };
   },
 
@@ -89,6 +122,66 @@ export default {
           this.loading = false;
         });
     }, 400),
+
+
+  handleItemClick(item, event) {
+  if (['BUTTON', 'INPUT', 'TEXTAREA'].includes(event.target.tagName)) return;
+
+  if (this.selectedTab === "Subjects") {
+    this.selectedSubject = { ...item };
+    this.showSubjectModal = true;
+  } else if (this.selectedTab === "Quizzes") {
+    this.selectedQuiz = { ...item };
+    this.showQuizModal = true;
+  }
+},
+
+  handleQuizDelete(quizId) {
+    if (confirm("Are you sure you want to delete this quiz?")) {
+      api.delete(`/quizzes/${quizId}`)
+        .then(() => {
+          this.debouncedSearch();
+          this.showQuizModal = false;
+        })
+        .catch(err => alert(err.response?.data?.msg || "Failed to delete quiz."));
+    }
+  },
+
+  handleSubjectDelete(subjectId) {
+    if (confirm("Are you sure you want to delete this subject?")) {
+      api.delete(`/subjects/${subjectId}`)
+        .then(() => {
+          this.debouncedSearch();
+          this.showSubjectModal = false;
+        })
+        .catch(err => alert(err.response?.data?.msg || "Failed to delete subject."));
+    }
+  },
+
+    handleQuizSave(updatedQuiz) {
+      if (updatedQuiz.date_of_quiz) {
+        updatedQuiz.date_of_quiz = updatedQuiz.date_of_quiz.split("T")[0];
+      }
+
+      api.put(`/quizzes/${updatedQuiz.id}`, updatedQuiz)
+        .then(() => {
+          this.debouncedSearch();
+          this.showQuizModal = false;
+        })
+        .catch(err => alert(err.response?.data?.msg || "Failed to update quiz."));
+    },
+
+
+    handleSubjectSave(updatedSubject) {
+      api.put(`/subjects/${updatedSubject.id}`, updatedSubject)
+        .then(() => this.debouncedSearch())
+        .catch(err => alert(err.response?.data?.msg || "Failed to update subject."));
+      this.showSubjectModal = false;
+    },
+
+
+  
+
   },
 };
 

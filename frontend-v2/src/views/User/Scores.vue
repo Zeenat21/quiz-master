@@ -1,6 +1,6 @@
 <template>
   <div class="container py-4">
-    <h3 class="mb-4 fw-bold text-dark">My Quiz Scores</h3>
+    <h3 class="mb-4 fw-bold text-violet">My Quiz Scores</h3>
 
     <div v-if="scores.length === 0" class="alert alert-info text-center">
       No scores available yet.
@@ -84,5 +84,11 @@ export default {
   padding: 8px 12px;
   border-radius: 12px;
 }
+
+
+.text-violet {
+  color: #6a1b9a !important;
+}
+
 </style>
 

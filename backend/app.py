@@ -13,6 +13,8 @@ def create_app():
 
     db.init_app(app)
     jwt = JWTManager(app)
+
+
     CORS(app)
 
     app.register_blueprint(auth_bp, url_prefix='/api')

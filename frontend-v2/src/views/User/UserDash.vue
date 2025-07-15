@@ -1,8 +1,8 @@
 <template>
-  <div class="d-flex" style="min-height: 100vh;">
+  <div class="d-flex vh-100 overflow-hidden">
     <UserSidebar :collapsed="isSidebarCollapsed" @toggle="toggleSidebar" />
-    <div class="flex-grow-1 bg-light">
-      <main class="p-4">
+    <div class="flex-grow-1 bg-light overflow-auto">
+      <main class="p-4" style="min-height: 100%; overflow-y: auto; overflow-x: auto;">
         <router-view />
       </main>
     </div>
